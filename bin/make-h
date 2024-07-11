@@ -1,0 +1,169 @@
+#!/bin/sh -e
+##:
+#h: Usage: make-h ...
+#h:
+#h: ... init|i [c]    : Initialize/update Makefile.
+#h:
+#h: ... add BLKS...   : Add "go" block. (go, sh, license, man)
+#h: ... update        : Update blocks.
+#h:
+#h: ... get VARIABLE : Get variable.
+#h: ... chk TARGET   : Check the target is available.
+#h:
+#h: ... project      : Get PROJECT.
+#h: ... version      : Get VERSION.
+##:
+make_h() {
+    local cmd="$1" V
+    shift
+    case "${cmd}" in
+        init|i)     make_h_init "$@" ;;
+        add|a)      make_h_add  "$@" ;;
+        update|u)   make_h_update    ;;
+
+        get)        make_h_V "$1"; echo "$V";;
+        chk)        make_h_chk "$1"  ;;
+        
+        project)    make_h_project   ;;
+        version)    make_h_version   ;;
+        *)          echo >&2 "error: Invalid argument: ${cmd}"; return 1;;
+    esac
+}
+make_h_show_variables() {
+    echo "MAKEFILE  : ${MAKEFILE}"
+    echo "GITIGNORE : ${GITIGNORE}"
+}
+make_h_calc_variables() {
+    if test -n "${MAKEFILE}"; then
+        true
+    elif test -e GNUmakefile; then
+        MAKEFILE="GNUmakefile"
+    elif test -e Makefile; then
+        MAKEFILE="Makefile"
+    else
+        MAKEFILE="GNUmakefile"
+    fi
+    GITIGNORE="${GITIGNORE:-.gitignore}"
+}
+## -------------------------------------------------------------------
+make_h_init() {
+    if test ! -e "${MAKEFILE}"; then
+        echo "Creating ${MAKEFILE} ..."
+        cat > "${MAKEFILE}" <<-EOF
+	.POSIX:
+	.SUFFIXES:
+	.PHONY: all clean install check
+	all:
+	PROJECT   =$(basename $(pwd) | sed 's|^sh-||;s|^go-||')
+	VERSION   =1.0.0
+	PREFIX    =/usr/local
+	BUILDDIR ?=${HOME}/.build
+	
+	all:
+	clean:
+	install:
+	check:
+	EOF
+    fi
+    if test ! -e "${GITIGNORE}"; then
+        echo "Creating ${GITIGNORE} ..."
+        echo > "${GITIGNORE}"
+    fi    
+}
+make_h_add() {
+    local b
+    make_h_init
+    for arg in "$@"; do
+        case "${arg}" in
+            c)
+                make_h_set_variable VERSION PROGS
+                make_h_set_variable VERSION CC gcc -Wall -std=c99
+                ;;
+            hare)
+                make_h_set_variable VERSION     PROGS
+                make_h_set_variable VERSION     HARE          hare
+                make_h_set_variable VERSION     HAREDOC       haredoc
+                make_h_set_variable PREFIX      SRCDIR        '$(PREFIX)/src'
+                make_h_set_variable SRCDIR      HARESRCDIR    '$(SRCDIR)/hare'
+                make_h_set_variable HARESRCDIR  THIRDPARTYDIR '$(HARESRCDIR)/third-party'
+                ;;
+            python)
+                make_h_set_variable VERSION PYTHON3 python3
+                ;;
+        esac
+    done
+    for b in "$@"; do
+        sed -i "/BLOCK:${b}/,/BLOCK:${b}/d" "${MAKEFILE}" "${GITIGNORE}"
+    done
+    ##
+    for b in "$@"; do
+        if ! which make-h-"${b}" >/dev/null 2>&1; then
+            echo >&2 "error: make-h-${b}: Not found."
+            return 1
+        fi
+        echo "## -- BLOCK:${b} --"
+        make-h-"${b}" makefile
+        echo "## -- BLOCK:${b} --"
+    done >> "${MAKEFILE}"
+    ##
+    for b in "$@"; do
+        echo "## -- BLOCK:${b} --"
+        make-h-"${b}" gitignore
+        echo "## -- BLOCK:${b} --"
+    done >> "${GITIGNORE}"
+}
+make_h_chk() {
+    if make -n "${1:-all}" >/dev/null 2>&1; then
+        echo "${1:-all}"
+        return 0
+    else
+        return 1
+    fi
+}
+make_h_update() {
+    make_h_add $(make_h_blocks)
+}
+make_h_blocks() {
+    if test -f "${MAKEFILE}"; then
+        sed -n 's|.*BLOCK:\([^ ]*\).*|\1|p' "${MAKEFILE}" | sort -u
+    fi
+}
+make_h_set_variable() {
+    local p="$1" v="$2"
+    shift 2
+    if ! grep -q "^${v} *=" "${MAKEFILE}"; then
+        echo "Adding ${v} ..."
+        sed -i "/^${p} *=/a${v} = $*" "${MAKEFILE}"
+    fi
+    
+}
+
+## -------------------------------------------------------------------
+make_h_V() {
+    if test ! -e "${MAKEFILE}"; then
+        echo >&2 "error: ${MAKEFILE}: File not found."
+        return 1
+    fi
+    local tmp="$(mktemp)"
+    sed 's|^    |	|' > "${tmp}" <<-EOF
+	print-${1}:
+	include ${MAKEFILE}
+	print-${1}:
+	    @echo "\$(${1})"
+	EOF
+    V="$(make -f "${tmp}")"
+    if test ! -n "${V}"; then
+        echo >&2 "error: ${MAKEFILE}: Variable ${1} not set."
+        return 1
+    fi
+}
+make_h_project()   { local V; make_h_V PROJECT;      echo "${V}" | sed 's|^sh-||'; }
+make_h_version()   { local V; make_h_V VERSION;      echo "${V}"; }
+## -------------------------------------------------------------------
+make_h_calc_variables
+if test @"$(basename "$0")" = @"make-h";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0" ;;
+        *)            make_h "$@"; exit 0;;
+    esac
+fi

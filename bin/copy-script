@@ -1,0 +1,63 @@
+#!/bin/sh -e
+##:
+#h: Usage: copy-script [-fc] -d DIRECTORY FROM...
+#h:
+#h: Copy script adding "%copy%" to it's "#tags: " section. If
+#h: it doesn't contain it prints a warning, can be skipped with "-f".
+#h:
+#h: If you specify "-c" then the copy will be done if the specified
+#h: paths do exist.
+##:
+copy_script() {
+    local OPTIND optopt fr to force= check= directory=
+    
+    ## Parse command line arguments.
+    while getopts "fd:c" optopt; do
+        case $optopt in
+            f)  force=y;;
+            d)  directory="${OPTARG}";;
+            c)  check=y;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    if test ! -n "${directory}"; then
+        echo >&2 "error: Please specify a directory with '-d'."
+        return 1
+    fi
+
+    ## Copy files.
+    for fr in "$@"; do
+        to="${directory}/$(basename "${fr}")"
+        if test -d "${directory}" && test -f "${fr}"; then
+            if grep -q '^\#[Tt]ags:' "${fr}"; then
+                echo >&2 "COPY .-- ${fr}"
+                echo >&2 "     '-> ${to}"
+            else
+                echo >&2 "COPY       .-- ${fr}"
+                echo >&2 " (no tags) '-> ${to}"
+            fi
+            sed '/^\#[Tt]ags:/s|$| %copy%|' "${fr}" > "${to}"
+            continue
+        elif test -n "${check}"; then
+            echo >&2 "SKIP .-- ${fr}"
+            echo >&2 "     '-> ${to}"
+            continue
+        elif test ! -d "${directory}"; then
+            echo >&2 "error: ${directory}: Not a directory."
+            return 1
+        elif test ! -f "${fr}"; then
+            echo >&2 "error: ${fr}: Not a file."
+            return 1
+        fi
+    done
+    
+    ##
+    return 0
+}
+if test @"${SCRNAME:-$(basename "$0")}" = @"copy-script"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            copy_script "$@"; exit 0;;
+    esac
+fi

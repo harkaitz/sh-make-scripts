@@ -1,0 +1,64 @@
+#!/bin/sh -e
+##:
+#h: Usage: script-h [-r|p : Record/play keystrokes] COMMAND
+#h:
+#h: Helper script around script(1), scriptreplay(1), ttyrec(1), xterm(1)
+#h: and ttyrec2gif(go) to record terminal session gifs.
+#h:
+#h: The gif is generated in "rec/tty.gif", keystrokes in "rec/script.{i,t}"
+#h: and ttyrec file in "rec/ttyrecord".
+##:
+script_h() {
+    local OPTIND optopt o_record= o_play=
+    
+    ## Parse command line arguments.
+    while getopts "rp" optopt; do
+        case $optopt in
+            r)  o_record='y';;
+            p)  o_play='y';;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    
+    ## Execute command.
+    if test -n "${o_record}"; then
+        script_h_record "${@:-sh}"
+    elif test -n "${o_play}"; then
+        script_h_play "${@:-sh}"
+    else
+        script_h_run "${@:-sh}"
+    fi
+    
+    ## Create gif.
+    ttyrec2gif -col 80 -row 24 -in 'rec/ttyrecord' -out 'rec/tty.gif'
+}
+## -------------------------------------------------------------------
+script_h_record() {
+    mkdir -p rec
+    CMD="$*" xterm -geometry '80x24+30+200' -e ttyrec -e '
+        script -q -c "${CMD}" -e -I rec/script.i -T rec/script.t
+        sleep 1
+    ' rec/ttyrecord
+}
+script_h_play() {
+    mkdir -p rec
+    CMD="$*" xterm -geometry '80x24+30+200' -e ttyrec -e '
+        scriptreplay -I rec/script.i -T rec/script.t | script -q -c "${CMD}"
+        sleep 1
+    ' rec/ttyrecord
+}
+script_h_run() {
+    mkdir -p rec
+    xterm -geometry '80x24+30+200' -e ttyrec -e "
+        $*
+        sleep 1
+    " rec/ttyrecord
+}
+## -------------------------------------------------------------------
+if test @"${SCRNAME:-$(basename "$0")}" = @"script-h"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            script_h "$@"; exit 0;;
+    esac
+fi

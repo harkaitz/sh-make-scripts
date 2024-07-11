@@ -40,6 +40,16 @@ runit-h
     
     Platforms: Linux
 
+script-h
+
+    Usage: script-h [-r|p : Record/play keystrokes] COMMAND
+    
+    Helper script around script(1), scriptreplay(1), ttyrec(1), xterm(1)
+    and ttyrec2gif(go) to record terminal session gifs.
+    
+    The gif is generated in "rec/tty.gif", keystrokes in "rec/script.{i,t}"
+    and ttyrec file in "rec/ttyrecord".
+
 systemd-h
 
     Usage: systemd-h [-v][-D DESTDIR][-d DESC] ...

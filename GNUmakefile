@@ -24,4 +24,5 @@ install-sh:
 	cp bin/runit-h          $(DESTDIR)$(PREFIX)/bin
 	cp bin/make-h           $(DESTDIR)$(PREFIX)/bin
 	cp bin/copy-script      $(DESTDIR)$(PREFIX)/bin
+	cp bin/script-h         $(DESTDIR)$(PREFIX)/bin
 ## -- BLOCK:sh --

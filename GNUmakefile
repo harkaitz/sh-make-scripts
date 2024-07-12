@@ -25,4 +25,6 @@ install-sh:
 	cp bin/make-h           $(DESTDIR)$(PREFIX)/bin
 	cp bin/copy-script      $(DESTDIR)$(PREFIX)/bin
 	cp bin/script-h         $(DESTDIR)$(PREFIX)/bin
+	cp bin/json-cfg         $(DESTDIR)$(PREFIX)/bin
+	cp bin/release-mode     $(DESTDIR)$(PREFIX)/bin
 ## -- BLOCK:sh --

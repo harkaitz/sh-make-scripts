@@ -15,6 +15,33 @@ copy-script
     If you specify "-c" then the copy will be done if the specified
     paths do exist.
 
+json-cfg
+
+    Usage: json-cfg ...
+    
+    Mechanism for forming configuration json files out of your local
+    settings stored in "json-cfg__NAME" scripts.
+    
+    ## Defining settings:
+    
+      1. Write a script named "json-cfg__NAME".
+      2. Add "--help" support to this script.
+      3. Without arguments it should print testing settings.
+    
+    ## Searching settings.
+    
+      json-cfg -l      : List defined configuration script names.
+      json-cfg -h NAME : Print configuration help.
+    
+    ## Writting makefiles that create settings.
+    
+      assemble:
+          json-cfg -e CONFIG_FILE -i NAME[,ARGS...] -i EXAMPLE_FILE
+    
+    The makefiles should have a configuration file (EXAMPLE_FILE). When
+    executed "make assemble" then a configuration file is created which
+    it is packed with "make install".
+
 make-h
 
     Usage: make-h ...
@@ -29,6 +56,13 @@ make-h
     
     ... project      : Get PROJECT.
     ... version      : Get VERSION.
+
+release-mode
+
+    Usage: release-mode [-a] [COMMAND...]
+    
+    Execute a command or open a shell with "RELEASE_MODE=rel"
+    environment variable set.
 
 runit-h
 

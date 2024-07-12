@@ -1,0 +1,85 @@
+#!/bin/sh -e
+##:
+#h: Usage: json-cfg ...
+#h:
+#h: Mechanism for forming configuration json files out of your local
+#h: settings stored in "json-cfg__NAME" scripts.
+#h:
+#h: ## Defining settings:
+#h:
+#h:   1. Write a script named "json-cfg__NAME".
+#h:   2. Add "--help" support to this script.
+#h:   3. Without arguments it should print testing settings.
+#h:
+#h: ## Searching settings.
+#h:
+#h:   json-cfg -l      : List defined configuration script names.
+#h:   json-cfg -h NAME : Print configuration help.
+#h:
+#h: ## Writting makefiles that create settings.
+#h:
+#h:   assemble:
+#h:       json-cfg -e CONFIG_FILE -i NAME[,ARGS...] -i EXAMPLE_FILE
+#h:
+#h: The makefiles should have a configuration file (EXAMPLE_FILE). When
+#h: executed "make assemble" then a configuration file is created which
+#h: it is packed with "make install".
+##:
+json_cfg() {
+    local OPTIND optopt t c num=0 jq= inputs= tmps= ofile=
+    
+    ## Parse command line arguments.
+    while getopts "lh:i:e:" optopt; do
+        case $optopt in
+            l)  json_cfg_list; return 0;;
+            h)  json-cfg__"${OPTARG}" --help; return 0;;
+            i)  if test -f "${OPTARG}"; then
+                    inputs="${inputs} ${OPTARG}"
+                else
+                    t="$(mktemp)"
+                    tmps="${tmps} ${t}"
+                    c="json-cfg__$(echo "${OPTARG}" | tr ',' ' ')"
+                    if ! sh -ec "${c}" > "${t}"; then
+                        echo >&2 "error: ${c}"
+                        return 1
+                    fi
+                    inputs="${inputs} ${t}"
+                fi
+                ;;
+            e)  ofile="${OPTARG}"
+                ;;
+            \?) return 1;;
+        esac
+        case $optopt in
+            i) jq="${jq}${jq:+ * }.[${num}]" num=$((num + 1));;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    
+    ## Perform merges.
+    if test ! -n "${ofile}"; then
+        jq -s "${jq}" ${inputs}
+    elif test -f "${ofile}"; then
+        jq -s "${jq}" ${inputs} > "${ofile}.t1"
+        jq -s '.[0] * .[1]' "${ofile}" "${ofile}.t1" > "${ofile}.t2"
+        mv "${ofile}.t2" "${ofile}"
+        rm -f "${ofile}.t1"
+    else
+        jq -s "${jq}" ${inputs} > "${ofile}"
+    fi
+}
+## -------------------------------------------------------------------
+json_cfg_list() {
+    local IFS d
+    case "$(uname -s)" in Windows_NT) IFS=';';; *) IFS=':';; esac
+    for d in ${PATH}; do
+        test ! -d "${d}" || ls "${d}"
+    done | sed -n 's|^json-cfg__||p'
+}
+## -------------------------------------------------------------------
+if test @"$(basename "$0")" = @"json-cfg"; then
+    case "${1}" in
+        ''|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)         json_cfg "$@"; exit 0            ;;
+    esac
+fi

@@ -1,0 +1,124 @@
+#!/bin/sh -e
+##:
+#h: Usage: make-h-sh ...
+#h:
+#h: ... cmds       : List defined scripts.
+#h: ... upload SSH : Install shell project in remote machine.
+##:
+make_h_sh() {
+    local cmd="$1"
+    shift
+    case "${cmd}" in
+        ##
+        cmds)      make_h_sh_list_scripts ;;
+        makefile)  make_h_sh_makefile     ;;
+        gitignore) make_h_sh_gitignore    ;;
+        ##
+        upload)    make_h_sh_upload "$@"  ;;
+        ##
+        *) echo >&2 "error: Invalid argument: $cmd"; return 1;;
+    esac
+}
+## -------------------------------------------------------------------
+## ---- UTILITIES ----------------------------------------------------
+## -------------------------------------------------------------------
+make_h_sh_upload() {
+    local tmp tar ssh
+    
+    ## Update makefile.
+    if which make-h >/dev/null 2>&1; then
+        make-h update >/dev/null || true
+    fi
+    
+    ## Create tar.
+    tmp="$(mktemp -d)"
+    tar="$tmp.tgz"
+    make -s install DESTDIR="$tmp"
+    tar czf "$tar" -C "$tmp" .
+    rm -rf "$tmp"
+    
+    ## Upload to machines.
+    for ssh in "$@"; do
+        echo "== $ssh"
+        ssh "$ssh" 'tar xvzf - -C /' < "$tar"
+    done
+    
+    ## Cleanup.
+    rm -rf "$tmp" "$tar"
+}
+
+## -------------------------------------------------------------------
+## ---- INTERFACE WITH MAKE-H ----------------------------------------
+## -------------------------------------------------------------------
+make_h_sh_makefile() {
+    local s_bin="$(     make_h_sh_list_scripts  bin    | tr '\n' ' ')"
+    local s_sbin="$(    make_h_sh_list_scripts sbin    | tr '\n' ' ')"
+    local s_openbsd="$( make_h_sh_list_scripts  o      | tr '\n' ' ')"
+    local s_windows="$( make_h_sh_list_scripts  w w64  | tr '\n' ' ')"
+    
+    local d='$(DESTDIR)$(PREFIX)'
+    if test -n "${s_bin}${s_sbin}${s_openbsd}${s_windows}"; then
+        echo "install: install-sh"
+        echo "install-sh:"
+        test ! -n "${s_bin}"                          || echo "	mkdir -p ${d}/bin"
+        test ! -n "${s_sbin}${s_openbsd}${s_windows}" || echo "	mkdir -p ${d}/sbin"
+        for s in ${s_bin}; do
+            printf '	cp %-20s %s\n' "${s}" "${d}/bin"
+        done
+        for s in ${s_sbin} ${s_openbsd}; do
+            printf '	cp %-20s %s\n' "${s}" "${d}/sbin"
+        done
+        if test -n "${s_openbsd}"; then
+            echo '        if ($(shell uname -s),OpenBSD)'
+            for s in ${s_openbsd}; do
+                printf '	  cp %-18s %s\n' "${s}" "${d}/sbin"
+            done
+            echo '        endif'
+        fi
+        if test -n "${s_windows}"; then
+            echo '        if ($(shell uname -s),Windows_NT)'
+            for s in ${s_windows}; do
+                printf '	  cp %-18s %s\n' "${s}" "${d}/sbin"
+            done
+            echo '        endif'
+        fi
+    fi
+    if test -d share; then
+        echo "install: install-share"
+        echo "install-share:"
+        echo "	mkdir -p ${d}/share"
+        for f in $(find share -maxdepth 1 -mindepth 1 -type d); do
+            echo "	cp -r ${f} ${d}/share"
+        done
+    fi
+}
+make_h_sh_list_scripts() {
+    local f
+    for f in $(make_h_sh_list_executables "$@"); do
+        case "`sed -n "s|^\\#!\\([^ ]*\\).*|\\1|p;1q" "$f"`" in
+            /bin/sh|/bin/bash|/bin/ksh) echo "$f";;
+        esac
+    done
+}
+make_h_sh_list_executables() { # DIRS
+    local d
+    for d in "${@:-.}"; do
+        if test -d "$d"; then
+            find "$d" -type f -executable | sed '\|/.git/|d'
+        fi
+    done
+}
+make_h_sh_gitignore() {
+    for f in InstallFile install.sh install; do
+        if test -e "$f"; then
+            echo "$f"
+        fi
+    done
+}
+## -------------------------------------------------------------------
+if test @"$(basename "$0")" = @"make-h-sh";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0" ;;
+        *)            make_h_sh "$@"; exit 0;;
+    esac
+fi

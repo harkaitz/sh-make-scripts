@@ -77,7 +77,7 @@ make_h_add() {
         case "${arg}" in
             c)
                 make_h_set_variable VERSION PROGS
-                make_h_set_variable VERSION CC gcc -Wall -std=c99
+                make_h_set_variable VERSION CC gcc -Wall -g3 -std=c99
                 ;;
             hare)
                 make_h_set_variable VERSION     PROGS

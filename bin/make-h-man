@@ -1,0 +1,85 @@
+#!/bin/sh -e
+##:
+#h: Usage: make-h-man
+#h:
+#h: Convert markdown files with "*.[NUM].md" format to man pages.
+#h:
+#h: ... mds        : List markdown files.
+#h: ... mans [NUM] : List man files.
+#h:
+#h: ... update    : Generate man pages from markdow files.
+#h: ... makefile  : Print makefile section (used by make-h) (for installation).
+#h: ... gitignore : Print gitignore section (used by make-h).
+##:
+make_h_man() {
+    local cmd="$1"
+    shift
+    case "${cmd}" in
+        mds)       make_h_man_mds        ;;
+        mans)      make_h_man_files "$@" ;;
+        update)    make_h_man_update     ;;
+        makefile)  make_h_man_makefile   ;;
+        gitignore) true;;
+        *)         echo >&2 "error: Invalid argument: ${cmd}"; return 1;;
+    esac
+}
+## -------------------------------------------------------------------
+make_h_man_mds() {
+    find -iname '*.1.md' -or -iname '*.2.md' -or \
+         -iname '*.3.md' -or -iname '*.4.md' -or \
+         -iname '*.5.md' -or -iname '*.6.md' -or \
+         -iname '*.7.md' -or -iname '*.8.md'
+}
+make_h_man_files() {
+    find -regex '.*/.*\.'"${1:-[0-9]}"'$'
+}
+
+## -------------------------------------------------------------------
+make_h_man_update() {
+    local pandoc md dir man n l
+    pandoc="$(which pandoc 2>/dev/null || true)"
+    for md in $(make_h_man_mds); do
+        echo "ssnip ${md}" >&2
+        ssnip "${md}"
+        if test ! -n "${pandoc}"; then
+            continue
+        fi  
+        dir="$(dirname  "${md}")"
+        man="$(basename "${md}" .md)"
+        n="$(basename "${md}"  | sed    's|\..*||')"
+        l="$(basename "${man}" | sed -n 's|^.*\.||p')"
+        echo "pandoc ${dir}/${man}" >&2
+        "${pandoc}" --standalone --to man --from markdown "${md}" | sed '
+            /^\.TH /s/"" ""/"'"${n}"'" "'"${l}"'"/
+            /^\.SH SYNOPSIS/,/^\.SH/{
+                /^\.IP$/d
+            }
+        ' > "${dir}/${man}"
+    done
+}
+make_h_man_makefile() {
+    local n ff
+    make_h_man_update
+    if test ! -n "$(make_h_man_files)"; then
+        return 0
+    fi
+    echo "install: install-man"
+    echo "install-man:"
+    for n in $(seq 1 9); do
+        ff="$(make_h_man_files "${n}")"
+        if test -n "${ff}"; then
+            echo "	mkdir -p \$(DESTDIR)\$(PREFIX)/share/man/man${n}"
+            for f in ${ff}; do
+                echo "	cp ${f} \$(DESTDIR)\$(PREFIX)/share/man/man${n}"
+            done
+        fi
+    done
+}
+
+## ---------------------------------------------------------------
+if test @"$(basename "$0")" = @"make-h-man";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0" ;;
+        *)            make_h_man "$@"; exit 0;;
+    esac
+fi

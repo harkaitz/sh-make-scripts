@@ -1,0 +1,14 @@
+#!/bin/sh -e
+##:
+#h: Usage: np--shell : Initialize shell project.
+##:
+np__shell() {
+    make-h add sh license
+    make-h update
+}
+if test @"$(basename "$0")" = @"np--shell";then
+    case "${1}" in
+        -h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0" ;;
+        *)         np__shell "$@"; exit 0;;
+    esac
+fi
